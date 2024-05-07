@@ -79,3 +79,6 @@ vendor
 
 # Generic build folder
 build/
+
+# clangd
+.cache

@@ -1,0 +1,11 @@
+--- src/CMakeLists.txt	2024-05-07 19:32:16.103528595 +0200
++++ src/CMakeLists.txt	2024-05-07 19:32:20.593526659 +0200
+@@ -35,6 +35,8 @@
+   cmake_policy(SET CMP0074 NEW)
+ endif()
+ 
++cmake_policy(SET CMP0077 NEW)
++
+ include(CheckCSourceCompiles)
+ include(GNUInstallDirs)
+ 

@@ -1,146 +1,125 @@
-name: CI build
+name: Build
 
-on: [push]
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
   build:
     strategy:
       fail-fast: false
       matrix:
-        version:
-          - 5.14.1
-        platform:
-          - gcc_64
-          - android
-          - wasm_32
-          - msvc2017_64
-          - msvc2017
-          - winrt_x64_msvc2017
-          - winrt_x86_msvc2017
-          - winrt_armv7_msvc2017
-          - mingw73_64
-          - mingw73_32
-          - clang_64
-          - ios
-
+        # prettier-ignore
         include:
-          - platform: gcc_64
-            os: ubuntu-latest
-          - platform: android
-            os: ubuntu-latest
-          - platform: wasm_32
-            os: ubuntu-latest
-            emsdk: sdk-fastcomp-1.38.27-64bit
-          - platform: msvc2017_64
-            os: windows-latest
-          - platform: msvc2017
-            os: windows-latest
-          - platform: winrt_x64_msvc2017
-            os: windows-latest
-          - platform: winrt_x86_msvc2017
-            os: windows-latest
-          - platform: winrt_armv7_msvc2017
-            os: windows-2016  # not working with latest yet...
-          - platform: mingw73_64
-            os: windows-latest
-          - platform: mingw73_32
-            os: windows-latest
-          - platform: clang_64
-            os: macos-latest
-          - platform: ios
-            os: macos-latest
+          - {host: mac,     target: desktop, qt-version: "6.5.3",  arch: clang_64}
+          - {host: mac,     target: desktop, qt-version: "6.7.0",  arch: clang_64}
+          - {host: windows, target: desktop, qt-version: "5.15.2", arch: win64_msvc2019_64}
+          - {host: windows, target: desktop, qt-version: "5.15.2", arch: win32_msvc2019}
+          - {host: windows, target: desktop, qt-version: "6.5.3",  arch: win64_msvc2019_64}
+          - {host: windows, target: desktop, qt-version: "6.7.0",  arch: win64_msvc2019_64}
+          - {host: linux,   target: desktop, qt-version: "5.15.2", arch: gcc_64}
+          - {host: linux,   target: desktop, qt-version: "6.5.3",  arch: gcc_64}
+          - {host: linux,   target: desktop, qt-version: "6.7.0",  arch: linux_gcc_64}
 
-    runs-on: ${{matrix.os}}
+    runs-on: ${{ format('{0}-latest', (matrix.host == 'mac' && 'macos') || (matrix.host == 'linux' && 'ubuntu') || matrix.host) }}
+    env:
+      APNG_FLAGS: ${{ format('-DAPNG_TESTS=On -DAPNG_EXAMPLES=On -DAPNG_QT6={0} -DCMAKE_BUILD_TYPE=Release', startsWith(matrix.qt-version, '6') && 'On' || 'Off') }}
+      ARTIFACT_NAME: ${{ matrix.host == 'mac' && 'libqapng.dylib' || matrix.host == 'linux' && 'libqapng.so' || matrix.host == 'windows' && 'qapng.dll' || 'NO_NAME' }}
     steps:
-      - uses: actions/checkout@v1
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
-      - uses: actions/setup-python@v1
-      - name: actions/cache emsdk
-        uses: actions/cache@v1
-        if: matrix.platform == 'wasm_32'
-        with:
-          path: emsdk-cache
-          key: ${{runner.os}}-emsdk-${{matrix.emsdk}}
-      - uses: mymindstorm/setup-emsdk@v3
-        if: matrix.platform == 'wasm_32'
-        with:
-          version: ${{matrix.emsdk}}
-          actions-cache-folder: emsdk-cache
-      - name: actions/cache qt
-        uses: actions/cache@v1
-        id: cache
-        with:
-          path: qt/${{matrix.version}}/${{matrix.platform}}
-          key: qt-${{matrix.version}}-${{matrix.platform}}
-      - uses: Skycoder42/action-setup-qt@master
-        id: qt
-        with:
-          version: ${{matrix.version}}
-          platform: ${{matrix.platform}}
-          cachedir: qt/${{matrix.version}}/${{matrix.platform}}
-      - name: qmake
-        run: |
-          qmake CONFIG+=install_ok QT_PLATFORM=${{matrix.platform}}
-          ${{steps.qt.outputs.make}} qmake_all
-      - name: make module
-        run: |
-          ${{steps.qt.outputs.make}}
-          ${{steps.qt.outputs.make}} INSTALL_ROOT="${{steps.qt.outputs.installdir}}" install
-      - name: make tests
-        if: steps.qt.outputs.tests == 'true'
-        run: |
-          ${{steps.qt.outputs.make}} all
-          ${{steps.qt.outputs.make}} ${{steps.qt.outputs.testflags}} run-tests
-      - name: make examples
-        if: matrix.platform == 'gcc_64'
-        run: |
-          ${{steps.qt.outputs.make}} sub-examples
-          cd examples && ${{steps.qt.outputs.make}} INSTALL_ROOT="${{steps.qt.outputs.installdir}}" install
-#      - name: make doc
-#        if: matrix.platform == 'gcc_64'
-#        run: |
-#          ${{steps.qt.outputs.make}} doxygen
-#          cd doc && ${{steps.qt.outputs.make}} INSTALL_ROOT="${{steps.qt.outputs.installdir}}" install
-      - name: upload module to releases
-        uses: Skycoder42/action-upload-release@master
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          repo_token: ${{secrets.GITHUB_TOKEN}}
-          directory: ${{steps.qt.outputs.outdir}}/${{matrix.version}}
-          asset_name: qtapng-${{matrix.platform}}-${{matrix.version}}
-          tag: ${{github.ref}}
-          overwrite: true
-      - name: upload examples to releases
-        uses: Skycoder42/action-upload-release@master
-        if: matrix.platform == 'gcc_64' && startsWith(github.ref, 'refs/tags/')
-        with:
-          repo_token: ${{secrets.GITHUB_TOKEN}}
-          directory: ${{steps.qt.outputs.outdir}}/${{matrix.version}}/${{matrix.platform}}/examples
-          asset_name: qtapng-examples-${{matrix.version}}
-          tag: ${{github.ref}}
-          overwrite: true
-#      - name: upload doc to releases
-#        uses: Skycoder42/action-upload-release@master
-#        if: matrix.platform == 'gcc_64' && startsWith(github.ref, 'refs/tags/')
-#        with:
-#          repo_token: ${{secrets.GITHUB_TOKEN}}
-#          directory: ${{steps.qt.outputs.outdir}}/${{matrix.version}}/${{matrix.platform}}/doc
-#          asset_name: qtapng-doc-${{matrix.version}}
-#          tag: ${{github.ref}}
-#          overwrite: true
 
-  deploy:
-    if: startsWith(github.ref, 'refs/tags/')
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v3
+        with:
+          version: ${{matrix.qt-version}}
+          host: ${{matrix.host}}
+          target: ${{matrix.target}}
+          arch: ${{matrix.arch}}
+
+      - name: Enable Developer Command Prompt (Windows)
+        if: matrix.host == 'windows'
+        uses: ilammy/msvc-dev-cmd@v1.13.0
+        with:
+          arch: ${{ startsWith(matrix.arch, 'win32') && 'x86' || 'x64' }}
+
+      - name: Configure (Windows)
+        if: matrix.host == 'windows'
+        run: |
+          cmake -B build -A ${{ startsWith(matrix.arch, 'win32') && 'Win32' || 'x64' }} ${{ env.APNG_FLAGS }}
+
+      - name: Configure (macOS)
+        if: matrix.host == 'mac'
+        run: |
+          cmake -B build-arm64 -DCMAKE_OSX_ARCHITECTURES=arm64 ${{ env.APNG_FLAGS }}
+          cmake -B build-x86_64 -DCMAKE_OSX_ARCHITECTURES=x86_64 ${{ env.APNG_FLAGS }}
+
+      - name: Configure (Linux)
+        if: matrix.host == 'linux'
+        run: |
+          cmake -B build ${{ env.APNG_FLAGS }}
+
+      - name: Build (Windows/Linux)
+        if: matrix.host != 'mac'
+        run: cmake --build build
+
+      - name: Build (macOS)
+        if: matrix.host == 'mac'
+        run: |
+          cmake --build build-arm64
+          cmake --build build-x86_64
+
+          mkdir -p build/plugins/imageformats && cd build
+
+          lipo -create \
+            ../build-arm64/plugins/imageformats/libqapng.dylib \
+            ../build-x86_64/plugins/imageformats/libqapng.dylib \
+            -output ./plugins/imageformats/libqapng.dylib
+          lipo -info ./plugins/imageformats/libqapng.dylib
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{matrix.host}}-${{matrix.target}}-${{matrix.arch}}-${{matrix.qt-version}}-${{env.ARTIFACT_NAME}}
+          path: build/plugins/imageformats/${{env.ARTIFACT_NAME}}
+
+  create-release:
     needs: [build]
     runs-on: ubuntu-latest
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
+
     steps:
-      - uses: actions/setup-python@v1
-      - uses: Skycoder42/action-deploy-qt@master
+      - uses: actions/checkout@v4
         with:
-          token: ${{secrets.GITHUB_TOKEN}}
-          version: 5.14.1
-          host: ${{secrets.SSHFS_HOST}}
-          key: ${{secrets.SSHFS_KEY}}
-          port: ${{secrets.SSHFS_PORT}}
-          excludes: doc
+          submodules: recursive
+
+      - name: Create Directory
+        run: mkdir release-artifacts
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Show Artifacts
+        run: ls -R release-artifacts
+
+      - name: Create release
+        uses: ncipollo/release-action@v1.14.0
+        with:
+          replacesArtifacts: true
+          allowUpdates: true
+          artifactErrorsFailBuild: true
+          artifacts: "release-artifacts/*"
+          body: ${{ github.event.head_commit.message }}
+          prerelease: true
+          name: Continuous Build
+          tag: cont
+
+      - name: Update cont tag
+        run: |
+          git tag -f cont
+          git push -f origin cont
