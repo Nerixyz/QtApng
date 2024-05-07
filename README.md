@@ -38,6 +38,19 @@ The project comes with a version of zlib and libpng (with the apng patch). They 
 	- `make` (If you want the tests/examples/etc. run `make all`)
 	- `make install`
 
+### Building with Qt 6
+
+To build with Qt 6, you need to have CMake installed. In the following example, Ninja is used as the generator, but any generator will do.
+If Qt is not in your path, add `-DCMAKE_PREFIX_PATH=<path-to-qt>` (see [Qt docs](https://doc.qt.io/qt-6/cmake-get-started.html)).
+To build a production build, add `-DCMAKE_BUILD_TYPE=Release`.
+
+```shell
+cmake -B build -G Ninja
+ninja -C build
+```
+
+The plugin will be in `build/plugins/imageformats/`.
+
 ## Usage
 Simply use the default Qt classes like `QImageReader`, `QMovie` etc. and open the apng files just like you would open normal images/animations (like gif files)
 

@@ -1,0 +1,11 @@
+--- src/CMakeLists.txt	2023-10-20 17:24:31.609169970 +0200
++++ src/CMakeLists.txt	2023-10-20 17:25:13.639172223 +0200
+@@ -33,6 +33,8 @@
+ cmake_minimum_required(VERSION 3.1)
+ cmake_policy(VERSION 3.1)
+ 
++cmake_policy(SET CMP0077 NEW)
++
+ project(libpng C ASM)
+ enable_testing()
+ 

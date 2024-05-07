@@ -33,6 +33,8 @@
 cmake_minimum_required(VERSION 3.1)
 cmake_policy(VERSION 3.1)
 
+cmake_policy(SET CMP0077 NEW)
+
 project(libpng C ASM)
 enable_testing()
 
